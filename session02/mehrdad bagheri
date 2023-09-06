@@ -1,0 +1,84 @@
+https://github.com/softrebel/mft-ai-1/tree/main
+
+""""تمرین یک """
+
+# x=input("Enter your numbers:")
+
+# y=x.split("+")
+
+# a=0
+# for item in y:
+#     a=a+int(item)
+
+# print(a)
+
+""""تمرین دو"""
+
+# x = ("alireza,alavi,23,tehran")
+
+# y=x.split(",")
+
+# print(y)
+
+""""تمرین سه"""
+
+# x = ("name,family,age,location","alireza,alavi,23,tehran")
+
+# a=x[0]
+# y=a.split(",")
+
+# b=x[1]
+# w=b.split(",")
+
+# u=[]
+# for n in range(0,4) :
+
+#     h = "{}:{}".format( y[n] , w[n])
+  
+#     u.append(h)
+# print(u)
+
+"""تمرین چهار"""
+
+# a=0
+# b=0
+# u=[]
+# z=[]
+# for n in range(0,10) :
+#     SongName = input("Enter song name : ")
+#     SongGenre = input("Enter song genre : ")
+
+#     print("...........................................")
+#     print("")
+
+#     if SongGenre == "metal" :
+#         a+=1
+#         u.append(SongName)
+#         print ("Metal song names :",u)
+#         print ("metal count :",a)
+    
+#     elif SongGenre == "rock" :
+#         b+=1
+#         z.append(SongName)
+#         print ("Rock song names :",z)
+#         print ("rock count :",b)
+  
+#     print("")
+#     print(":::::::::::::::::::::::::::::::::::::::::::")
+#     print("")
+
+"""تمرین پنج"""
+
+# import numpy as np
+# a=[3,8]
+
+
+
+# b=np.array(a).T
+# c=np.matmul(a,b)
+
+# if bool(c)==True :
+#     print("you can multiply ")
+# else:
+#     print("you cant multiply ")
+    
