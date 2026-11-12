@@ -30,7 +30,11 @@ jobs:
           python3 - <<'PY'
           import json, pathlib
           expected="5E:03:4F:EA:96:CC:B0:8B:8E:F3:2B:25:5C:75:AE:CE:49:F4:AB:D3:89:53:46:5E:EA:2F:F1:5E:EE:BC:20:B8"
-          data=json.loads(pathlib.Path('assetlinks.json').read_text(encoding='utf-8'))
+          raw_asset=pathlib.Path('assetlinks.json').read_bytes()
+          raw_manifest=pathlib.Path('manifest.webmanifest').read_bytes()
+          print('assetlinks len=',len(raw_asset),'first_bytes=',repr(raw_asset[:400]),flush=True)
+          print('manifest len=',len(raw_manifest),'first_bytes=',repr(raw_manifest[:400]),flush=True)
+          data=json.loads(raw_asset.decode('utf-8'))
           assert isinstance(data,list), type(data)
           assert any(
               isinstance(item,dict)
