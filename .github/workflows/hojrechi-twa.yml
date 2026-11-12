@@ -67,7 +67,7 @@ jobs:
           with zipfile.ZipFile(p) as z:
               assert z.testzip() is None
               assert any(n.startswith('classes') and n.endswith('.dex') for n in z.namelist())
-              assert any('app_icon' in n for n in z.namelist())
+              assert any(n.startswith('res/') and n.endswith('.png') for n in z.namelist())
           PY
       - name: Upload debug for smoke-testing
         uses: actions/upload-artifact@v4
