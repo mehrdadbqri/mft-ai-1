@@ -37,6 +37,9 @@
         <data android:scheme="https" android:host="hojrechi.com"/>
       </intent-filter>
     </activity>
+    <activity android:name="com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity" android:exported="false">
+      <meta-data android:name="android.support.customtabs.trusted.MANAGE_SPACE_URL" android:value="https://hojrechi.com/"/>
+    </activity>
     <activity android:name="com.google.androidbrowserhelper.trusted.FocusActivity"/>
     <provider
         android:name="androidx.core.content.FileProvider"
