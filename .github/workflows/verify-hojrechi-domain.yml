@@ -44,6 +44,15 @@ jobs:
               and expected in item.get('target',{}).get('sha256_cert_fingerprints',[])
               for item in data
           ),'Missing exact production app fingerprint / relation'
+          bazaar = [
+            item for item in data
+            if isinstance(item,dict) and item.get('target',{}).get('namespace')=='cafebazaar_twa'
+            and item.get('target',{}).get('package_name')=='com.hojrechi.app'
+          ]
+          assert bazaar, 'No cafebazaar_twa namespace for com.hojrechi.app in publicly-served JSON'
+          for item in bazaar:
+            print('Bazaar relations visible from external HTTPS:',item.get('relation'),flush=True)
+          assert any('cafebazaar_twa/check_validation' in item.get('relation',[]) for item in bazaar), 'Missing Bazaar relation check_validation in publicly-served JSON'
           m=json.loads(pathlib.Path('manifest.webmanifest').read_text(encoding='utf-8'))
           assert isinstance(m,dict)
           assert m.get('name'), 'Missing PWA name'
