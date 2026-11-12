@@ -1,4 +1,4 @@
-name: Hojrechi TWA 1.5.3 build
+name: Hojrechi TWA 1.5.4 build
 on:
   push:
     branches: [hojrechi-twa-v1.5]
@@ -61,6 +61,7 @@ jobs:
         run: |
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | head -n 8
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump xmltree app/build/outputs/apk/release/app-release-unsigned.apk AndroidManifest.xml | grep -A 2 'cafebazaar_twa' | grep -q 'cafebazaar_twa'
           python3 - <<'PY'
           import zipfile
           p='app/build/outputs/apk/release/app-release-unsigned.apk'
@@ -72,14 +73,14 @@ jobs:
       - name: Upload debug for smoke-testing
         uses: actions/upload-artifact@v4
         with:
-          name: Hojrechi-TWA-1.5.3-debug
+          name: Hojrechi-TWA-1.5.4-debug
           path: hojrechi-android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 10
       - name: Upload unsigned release for offline Bazaar signing
         uses: actions/upload-artifact@v4
         with:
-          name: Hojrechi-TWA-1.5.3-unsigned
+          name: Hojrechi-TWA-1.5.4-unsigned
           path: hojrechi-android/app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
           retention-days: 14
@@ -90,7 +91,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: Hojrechi-TWA-1.5.3-debug
+          name: Hojrechi-TWA-1.5.4-debug
           path: tested-apk
       - name: Enable emulator acceleration
         run: sudo chmod 666 /dev/kvm
