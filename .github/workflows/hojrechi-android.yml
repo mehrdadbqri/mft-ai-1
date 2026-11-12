@@ -120,14 +120,23 @@ jobs:
             adb logcat -c
             adb shell am start -W -n com.hojrechi.app/.MainActivity
             sleep 12
-            adb shell pidof com.hojrechi.app
+            adb logcat -d -b crash > android-crash.log || true
+            adb logcat -d -v threadtime > android-system.log || true
             adb shell dumpsys activity activities | grep 'mResumedActivity\|topResumedActivity\|mCurrentFocus' || true
-            adb logcat -d -b crash > android-crash.log
-            if grep -q 'FATAL EXCEPTION\|Process: com.hojrechi.app' android-crash.log; then
-              echo 'Android app crashed:'; cat android-crash.log; exit 1
+            adb shell screencap -p /sdcard/hojrechi-test.png || true
+            adb pull /sdcard/hojrechi-test.png hojrechi-test.png || true
+            echo 'App process:'
+            if ! adb shell pidof com.hojrechi.app; then
+              echo 'APP PROCESS NOT RUNNING. Fatal crash log:'
+              cat android-crash.log
+              grep -A 40 -B 3 -E 'FATAL EXCEPTION|AndroidRuntime|com.hojrechi.app' android-system.log | tail -n 200 || true
+              exit 1
             fi
-            adb shell screencap -p /sdcard/hojrechi-test.png
-            adb pull /sdcard/hojrechi-test.png hojrechi-test.png
+            if grep -q -E 'FATAL EXCEPTION|Process: com.hojrechi.app' android-crash.log; then
+              echo 'APP FATAL ERROR:'
+              cat android-crash.log
+              exit 1
+            fi
             test -s hojrechi-test.png
       - name: Upload emulator screenshot / crash output
         if: always()
@@ -137,5 +146,6 @@ jobs:
           path: |
             hojrechi-test.png
             android-crash.log
+            android-system.log
           if-no-files-found: ignore
           retention-days: 7
