@@ -1,0 +1,125 @@
+name: Hojrechi TWA 1.5.0 build
+on:
+  push:
+    branches: [hojrechi-twa-v1.5]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hojrechi-android
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 35
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -1)
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Recreate launcher art
+        run: |
+          python3 -m pip install -q Pillow cairosvg
+          mkdir -p app/src/main/res/drawable app/src/main/assets
+          base64 -d branding/icon.b64 > /tmp/icon.jpg
+          python3 - <<'PY'
+          from PIL import Image
+          from io import BytesIO
+          from collections import deque
+          import cairosvg
+          logo=Image.open(BytesIO(cairosvg.svg2png(url='branding/hojrechi_logo.svg',output_width=1122,output_height=1100))).convert('RGBA')
+          splash=Image.new('RGBA',(1080,2400),(249,91,0,255))
+          logo=logo.resize((560,550),Image.Resampling.LANCZOS)
+          splash.alpha_composite(logo,((1080-560)//2,(2400-550)//2))
+          splash.convert('RGB').save('app/src/main/res/drawable/twa_splash.png',optimize=True)
+          splash.convert('RGB').save('app/src/main/assets/splash_portrait.png',optimize=True)
+          icon=Image.open('/tmp/icon.jpg').convert('RGBA')
+          pixels=icon.load()
+          w,h=icon.size
+          q=deque([(0,0),(w-1,0),(0,h-1),(w-1,h-1)])
+          seen=set()
+          while q:
+              x,y=q.popleft()
+              if x<0 or y<0 or x>=w or y>=h or (x,y) in seen:continue
+              seen.add((x,y))
+              r,g,b,a=pixels[x,y]
+              if r<235 or g<235 or b<235:continue
+              pixels[x,y]=(r,g,b,0)
+              q.extend([(x-1,y),(x+1,y),(x,y-1),(x,y+1)])
+          icon.resize((512,512),Image.Resampling.LANCZOS).save('app/src/main/res/drawable/app_icon.png',optimize=True)
+          PY
+      - name: Compile debug and release
+        run: gradle :app:assembleDebug :app:assembleRelease --stacktrace --no-daemon
+      - name: Validate APK metadata
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | head -n 8
+          python3 - <<'PY'
+          import zipfile
+          p='app/build/outputs/apk/release/app-release-unsigned.apk'
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              assert any(n.startswith('classes') and n.endswith('.dex') for n in z.namelist())
+              assert any('app_icon' in n for n in z.namelist())
+          PY
+      - name: Upload debug for smoke-testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hojrechi-TWA-1.5.0-debug
+          path: hojrechi-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 10
+      - name: Upload unsigned release for offline Bazaar signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hojrechi-TWA-1.5.0-unsigned
+          path: hojrechi-android/app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 14
+  smoke-test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Hojrechi-TWA-1.5.0-debug
+          path: tested-apk
+      - name: Enable emulator acceleration
+        run: sudo chmod 666 /dev/kvm
+      - name: Launch TWA on Android 13
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          disable-animations: true
+          script: |
+            adb install -r tested-apk/app-debug.apk
+            adb logcat -c
+            adb shell am start -W -n com.hojrechi.app/com.google.androidbrowserhelper.trusted.LauncherActivity
+            sleep 8
+            adb logcat -d -b crash > android-crash.log
+            if grep -E -q "FATAL EXCEPTION|Process: com.hojrechi.app" android-crash.log; then cat android-crash.log; exit 1; fi
+            adb shell screencap -p /sdcard/twa.png
+            adb pull /sdcard/twa.png twa-smoke.png
+            test -s twa-smoke.png
+      - name: Upload smoke-test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hojrechi-TWA-Android13-smoke
+          path: |
+            twa-smoke.png
+            android-crash.log
+          if-no-files-found: ignore
+          retention-days: 7
