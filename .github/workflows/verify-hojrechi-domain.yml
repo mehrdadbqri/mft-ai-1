@@ -25,6 +25,28 @@ jobs:
           grep -i '^content-type:' assetheaders.txt | tail -n 1 || true
           echo "manifest Content-Type:"
           grep -i '^content-type:' manifestheaders.txt | tail -n 1 || true
+      - name: Diagnose TLS, DNS and requests across HTTP/2, HTTP/1.1, IPv4/IPv6
+        shell: bash
+        run: |
+          set +e
+          echo "DNS A and AAAA (record presence)"
+          getent ahostsv4 hojrechi.com | head -n 4 || true
+          getent ahostsv6 hojrechi.com | head -n 4 || true
+          URL="https://hojrechi.com/.well-known/assetlinks.json"
+          for mode in http11 http2 head chrome bazaar ipv6; do
+            echo "== request: ${mode} =="
+            flags="-4 --http1.1"
+            if [ "${mode}" = http2 ]; then flags="-4 --http2"; fi
+            if [ "${mode}" = head ]; then flags="-4 --head"; fi
+            if [ "${mode}" = ipv6 ]; then flags="-6 --http2"; fi
+            if [ "${mode}" = chrome ]; then flags="-4 --http2 -A Mozilla/5.0"; fi
+            if [ "${mode}" = bazaar ]; then flags="-4 --http1.1 -A python-requests/2.31.0"; fi
+            curl ${flags} -sS -L --max-time 15 --connect-timeout 7 -D "headers-${mode}.txt" -o "body-${mode}.txt" -w "result http=%{http_code} ip=%{remote_ip} tls=%{ssl_verify_result} redirects=%{num_redirects} mime=%{content_type} bytes=%{size_download} err=%{errormsg}\n" "${URL}" || true
+            head -n 14 "headers-${mode}.txt" 2>/dev/null || true
+            wc -c "body-${mode}.txt" 2>/dev/null || true
+          done
+          echo "== Certificate chain =="
+          echo | timeout 12 openssl s_client -connect hojrechi.com:443 -servername hojrechi.com -verify_return_error 2>&1 | grep -E 'depth=|verify return|Verify return code:|Verification error:|subject=|issuer=' || true
       - name: Validate Digital Asset Links and manifest values
         run: |
           python3 - <<'PY'
