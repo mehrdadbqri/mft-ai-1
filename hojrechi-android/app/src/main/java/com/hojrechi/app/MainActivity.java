@@ -44,7 +44,6 @@ public final class MainActivity extends Activity {
  private boolean loadFailed = false;
  @Override public void onCreate(Bundle state) {
   super.onCreate(state);
-  immersive();
   FrameLayout layout = new FrameLayout(this);
   root=layout;
   layout.setBackgroundColor(CREAM);
@@ -133,6 +132,9 @@ public final class MainActivity extends Activity {
   layout.addView(error,new FrameLayout.LayoutParams(-1,-1));
   installCutoutInsets(layout);
   setContentView(layout);
+  // The decor view exists only after setContentView(). Calling getInsetsController()
+  // before then crashes Android 13 (verified by emulator AndroidRuntime stacktrace).
+  immersive();
   if(Build.VERSION.SDK_INT>=20)layout.requestApplyInsets();
   if(Build.VERSION.SDK_INT>=33) getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
    android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::backOrExit);
