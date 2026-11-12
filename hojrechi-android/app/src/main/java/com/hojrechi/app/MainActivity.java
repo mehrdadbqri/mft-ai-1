@@ -7,6 +7,11 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.content.res.ColorStateList;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -30,6 +35,8 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 public final class MainActivity extends Activity {
@@ -39,6 +46,12 @@ public final class MainActivity extends Activity {
  private FrameLayout root;
  private static final int CREAM = Color.rgb(250,246,239);
  private ImageView splash;
+ private LinearLayout loadingBadge;
+ private final Handler uiHandler = new Handler(Looper.getMainLooper());
+ private boolean loadingRequested;
+ private long loadingShownAt;
+ private final Runnable delayedLoader = this::revealLoading;
+ private final Runnable loaderSafetyTimeout = this::finishLoading;
  private TextView error;
  private ValueCallback<Uri[]> fileCallback;
  private boolean loadFailed = false;
@@ -71,6 +84,7 @@ public final class MainActivity extends Activity {
    @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) { return external(req.getUrl().toString()); }
    @Override public void onPageStarted(WebView view, String url, Bitmap favicon) {
     loadFailed=false;
+    startLoading(false);
     if(splash!=null && splash.getVisibility()!=View.VISIBLE){
      view.animate().cancel();
      view.animate().alpha(0.96f).setDuration(95).start();
@@ -78,6 +92,7 @@ public final class MainActivity extends Activity {
     if(error!=null)error.setVisibility(View.GONE);
    }
    @Override public void onPageFinished(WebView view, String url) {
+    finishLoading();
     fadeOutSplash();
     view.animate().alpha(1f).setDuration(190).start();
     if(loadFailed && error!=null)error.setVisibility(View.VISIBLE);
@@ -86,6 +101,7 @@ public final class MainActivity extends Activity {
    @Override public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError err) {
     if(req.isForMainFrame()) {
      loadFailed=true;
+     finishLoading();
      fadeOutSplash();
      view.animate().alpha(1f).setDuration(180).start();
      if(error!=null)error.setVisibility(View.VISIBLE);
@@ -123,12 +139,13 @@ public final class MainActivity extends Activity {
   } catch(Exception ignored) {}
   splash.setScaleType(ImageView.ScaleType.CENTER_CROP);
   layout.addView(splash,new FrameLayout.LayoutParams(-1,-1));
+  createLoadingBadge(layout);
   error=new TextView(this);
   error.setText("ارتباط با حجره‌چی برقرار نشد. برای تلاش مجدد لمس کنید.");
   error.setTextColor(Color.BLACK); error.setBackgroundColor(Color.WHITE);
   error.setGravity(Gravity.CENTER);error.setTextSize(17);
   error.setPadding(30,30,30,30);error.setVisibility(View.GONE);
-  error.setOnClickListener(v->{error.setVisibility(View.GONE);web.reload();});
+  error.setOnClickListener(v->{error.setVisibility(View.GONE);refreshSite();});
   layout.addView(error,new FrameLayout.LayoutParams(-1,-1));
   installCutoutInsets(layout);
   setContentView(layout);
@@ -140,6 +157,79 @@ public final class MainActivity extends Activity {
    android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::backOrExit);
   if(state==null)web.loadUrl(HOME);
   else if(web.restoreState(state)==null)web.loadUrl(HOME);
+ }
+ private int dp(float value) {
+  return Math.round(value*getResources().getDisplayMetrics().density);
+ }
+ private void createLoadingBadge(FrameLayout container) {
+  // Compact and non-blocking native indicator: the existing website remains visible.
+  loadingBadge = new LinearLayout(this);
+  loadingBadge.setOrientation(LinearLayout.HORIZONTAL);
+  loadingBadge.setGravity(Gravity.CENTER_VERTICAL);
+  loadingBadge.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+  loadingBadge.setPadding(dp(17),dp(12),dp(15),dp(12));
+  GradientDrawable panel=new GradientDrawable();
+  panel.setColor(Color.rgb(255,250,245));
+  panel.setCornerRadius(dp(22));
+  panel.setStroke(dp(1),Color.rgb(243,218,199));
+  loadingBadge.setBackground(panel);
+  loadingBadge.setElevation(dp(12));
+  ProgressBar ring = new ProgressBar(this,null,android.R.attr.progressBarStyleSmall);
+  ring.setIndeterminate(true);
+  ring.setIndeterminateTintList(ColorStateList.valueOf(Color.rgb(249,91,0)));
+  LinearLayout.LayoutParams ringParams = new LinearLayout.LayoutParams(dp(26),dp(26));
+  ringParams.leftMargin=dp(11);
+  loadingBadge.addView(ring,ringParams);
+  TextView label = new TextView(this);
+  label.setText("در حال بارگذاری...");
+  label.setTextSize(13);
+  label.setTextColor(Color.rgb(69,53,45));
+  label.setGravity(Gravity.CENTER_VERTICAL);
+  label.setIncludeFontPadding(false);
+  loadingBadge.addView(label,new LinearLayout.LayoutParams(-2,-2));
+  FrameLayout.LayoutParams overlayParams =
+      new FrameLayout.LayoutParams(-2,-2,Gravity.CENTER);
+  loadingBadge.setClickable(false);
+  loadingBadge.setAlpha(0f);
+  loadingBadge.setVisibility(View.GONE);
+  container.addView(loadingBadge,overlayParams);
+ }
+ private void startLoading(boolean immediate) {
+  loadingRequested=true;
+  uiHandler.removeCallbacks(delayedLoader);
+  uiHandler.removeCallbacks(loaderSafetyTimeout);
+  // Avoid flashing the spinner for extremely fast page changes.
+  uiHandler.postDelayed(delayedLoader, immediate?0:150);
+  // A broken connection must never leave an endless loader on the website.
+  uiHandler.postDelayed(loaderSafetyTimeout,18000);
+ }
+ private void revealLoading() {
+  if(!loadingRequested || loadingBadge==null) return;
+  if(splash!=null && splash.getVisibility()==View.VISIBLE) return;
+  loadingBadge.animate().cancel();
+  loadingBadge.setVisibility(View.VISIBLE);
+  loadingShownAt=SystemClock.uptimeMillis();
+  loadingBadge.animate().alpha(1f).setDuration(170).start();
+ }
+ private void finishLoading() {
+  loadingRequested=false;
+  uiHandler.removeCallbacks(delayedLoader);
+  uiHandler.removeCallbacks(loaderSafetyTimeout);
+  if(loadingBadge==null || loadingBadge.getVisibility()!=View.VISIBLE)return;
+  // Short minimum hold makes the completion feedback perceptible without flicker.
+  long elapsed=SystemClock.uptimeMillis()-loadingShownAt;
+  uiHandler.postDelayed(()->{
+   if(loadingRequested || loadingBadge==null)return;
+   loadingBadge.animate().cancel();
+   loadingBadge.animate().alpha(0f).setDuration(160).withEndAction(()->{
+    if(loadingBadge!=null && !loadingRequested)loadingBadge.setVisibility(View.GONE);
+   }).start();
+  },Math.max(0,260-elapsed));
+ }
+ private void refreshSite() {
+  if(web==null)return;
+  startLoading(true);
+  web.reload();
  }
  private void fadeOutSplash() {
   if(splash==null || splash.getVisibility()!=View.VISIBLE) return;
@@ -222,8 +312,8 @@ public final class MainActivity extends Activity {
  }
  @Override public void onBackPressed(){backOrExit();}
  private void backOrExit() {
-  if(error!=null && error.getVisibility()==View.VISIBLE){error.setVisibility(View.GONE);web.loadUrl(HOME);}
-  else if(web!=null&&web.canGoBack())web.goBack();
+  if(error!=null && error.getVisibility()==View.VISIBLE){error.setVisibility(View.GONE);startLoading(true);web.loadUrl(HOME);}
+  else if(web!=null&&web.canGoBack()){startLoading(false);web.goBack();}
   else finish();
  }
  @Override protected void onSaveInstanceState(Bundle out){if(web!=null)web.saveState(out);super.onSaveInstanceState(out);}
@@ -232,6 +322,7 @@ public final class MainActivity extends Activity {
   if(req==FILE_PICKER && fileCallback!=null){fileCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result,data));fileCallback=null;}
  }
  @Override protected void onDestroy(){
+  uiHandler.removeCallbacksAndMessages(null);
   if(fileCallback!=null){fileCallback.onReceiveValue(null);fileCallback=null;}
   if(web!=null){ViewGroup parent=(ViewGroup)web.getParent();if(parent!=null)parent.removeView(web);web.destroy();web=null;}
   super.onDestroy();
@@ -244,7 +335,7 @@ public final class MainActivity extends Activity {
    else if(ev.getActionMasked()==MotionEvent.ACTION_UP){
     float dx=ev.getX()-downX,dy=ev.getY()-downY;
     float d=getResources().getDisplayMetrics().density;
-    if(getScrollY()<=0 && dy>115*d && dy>Math.abs(dx)*1.8f){reload();return true;}
+    if(getScrollY()<=0 && dy>115*d && dy>Math.abs(dx)*1.8f){refreshSite();return true;}
     if((downX<24*d||downX>getWidth()-24*d)&&Math.abs(dx)>130*d&&Math.abs(dx)>Math.abs(dy)*1.8f){backOrExit();return true;}
    }
    return super.onTouchEvent(ev);
