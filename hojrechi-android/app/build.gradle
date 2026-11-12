@@ -6,8 +6,8 @@ android {
     applicationId 'com.hojrechi.app'
     minSdk 26
     targetSdk 35
-    versionCode 150
-    versionName '1.5.0-twa'
+    versionCode 151
+    versionName '1.5.1-twa'
   }
   buildTypes {
     debug { minifyEnabled false }
