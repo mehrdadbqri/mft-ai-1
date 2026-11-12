@@ -52,7 +52,7 @@ jobs:
           assert bazaar, 'No cafebazaar_twa namespace for com.hojrechi.app in publicly-served JSON'
           for item in bazaar:
             print('Bazaar relations visible from external HTTPS:',item.get('relation'),flush=True)
-          assert any('cafebazaar_twa/check_validation' in item.get('relation',[]) for item in bazaar), 'Missing Bazaar relation check_validation in publicly-served JSON'
+          assert any(item.get('relation') == ['check_validation'] for item in bazaar), 'Bazaar requires exactly relation [check_validation] in cafebazaar_twa namespace'
           m=json.loads(pathlib.Path('manifest.webmanifest').read_text(encoding='utf-8'))
           assert isinstance(m,dict)
           assert m.get('name'), 'Missing PWA name'
