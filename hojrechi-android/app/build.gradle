@@ -1,7 +1,7 @@
 plugins { id 'com.android.application' }
 android {
   namespace 'com.hojrechi.app'
-  compileSdk 35
+  compileSdk 36
   defaultConfig {
     applicationId 'com.hojrechi.app'
     minSdk 26
