@@ -118,7 +118,7 @@ public final class MainActivity extends Activity {
   });
   layout.addView(web,new FrameLayout.LayoutParams(-1,-1));
   splash=new ImageView(this);
-  splash.setBackgroundColor(Color.rgb(255,90,0));
+  splash.setBackgroundColor(Color.rgb(249,91,0));
   try(java.io.InputStream in=getAssets().open("splash_portrait.png")) {
    splash.setImageBitmap(BitmapFactory.decodeStream(in));
   } catch(Exception ignored) {}
