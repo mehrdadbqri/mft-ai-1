@@ -31,19 +31,24 @@ jobs:
           gradle-version: '8.10.2'
       - name: Create user-provided splash and icon
         run: |
-          python3 -m pip install --quiet Pillow
+          python3 -m pip install --quiet Pillow cairosvg
           mkdir -p app/src/main/assets app/src/main/res/drawable
-          base64 -d branding/splash.b64 > app/src/main/assets/splash_portrait.jpg
           base64 -d branding/icon.b64 > /tmp/hojrechi-icon.jpg
           python3 - <<'PY'
-          from PIL import Image, ImageDraw
+          from PIL import Image
+          from io import BytesIO
           from collections import deque
-          splash_path='app/src/main/assets/splash_portrait.jpg'
-          splash=Image.open(splash_path).convert('RGB')
-          w0,h0=splash.size
-          bg=splash.getpixel((10,h0-90))
-          ImageDraw.Draw(splash).rectangle((0,h0-55,w0,h0),fill=bg)
-          splash.save(splash_path,quality=92)
+          import cairosvg
+          # Build a crisp 1080x2400 splash from the original brand symbol/wordmark.
+          # The SVG contours are traced from the supplied image, rather than a
+          # low-resolution screenshot. Keep proportions and prevent CENTER_CROP zoom.
+          data=cairosvg.svg2png(url='branding/hojrechi_logo.svg',
+                                output_width=1122,output_height=1100)
+          logo=Image.open(BytesIO(data)).convert('RGBA')
+          splash=Image.new('RGBA',(1080,2400),(249,91,0,255))
+          logo=logo.resize((560,550),Image.Resampling.LANCZOS)
+          splash.alpha_composite(logo,((1080-560)//2,(2400-550)//2))
+          splash.convert('RGB').save('app/src/main/assets/splash_portrait.png',optimize=True)
           im=Image.open('/tmp/hojrechi-icon.jpg').convert('RGBA')
           # Preserve the brand artwork, eliminating only connected white corner pixels.
           pix=im.load(); w,h=im.size
@@ -59,14 +64,14 @@ jobs:
               q.extend([(x+1,y),(x-1,y),(x,y+1),(x,y-1)])
           im.resize((512,512),Image.Resampling.LANCZOS).save('app/src/main/res/drawable/app_icon.png')
           PY
-          test -s app/src/main/assets/splash_portrait.jpg
+          test -s app/src/main/assets/splash_portrait.png
           test -s app/src/main/res/drawable/app_icon.png
       - name: Compile debug APK
         run: gradle :app:assembleDebug --stacktrace --no-daemon
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: Hojrechi-Android-1.2.0-APK
+          name: Hojrechi-Android-1.3.0-APK
           path: hojrechi-android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
