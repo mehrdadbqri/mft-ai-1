@@ -68,6 +68,23 @@ jobs:
           test -s app/src/main/res/drawable/app_icon.png
       - name: Compile debug APK
         run: gradle :app:assembleDebug --stacktrace --no-daemon
+      - name: Verify APK certificate, package and splash
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk | head -n 5
+          python3 - <<'PY'
+          import zipfile
+          from io import BytesIO
+          from PIL import Image
+          apk='app/build/outputs/apk/debug/app-debug.apk'
+          with zipfile.ZipFile(apk) as z:
+              assert z.testzip() is None
+              assert z.getinfo('classes2.dex').file_size > 10000
+              splash=Image.open(BytesIO(z.read('assets/splash_portrait.png')))
+              assert splash.size == (1080,2400),splash.size
+              assert z.getinfo('res/drawable/app_icon.png').file_size > 1000
+              print('Verified: signed APK, splash 1080x2400, bundled icon, code dex')
+          PY
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
