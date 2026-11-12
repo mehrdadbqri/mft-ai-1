@@ -4,6 +4,9 @@ on:
     branches:
       - hojrechi-android-build
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
