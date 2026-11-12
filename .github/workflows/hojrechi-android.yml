@@ -1,0 +1,63 @@
+name: Build Hojrechi Android APK
+on:
+  push:
+    branches:
+      - hojrechi-android-build
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hojrechi-android
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android SDK platform
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Create user-provided splash and icon
+        run: |
+          python3 -m pip install --quiet Pillow
+          mkdir -p app/src/main/assets app/src/main/res/drawable
+          base64 -d branding/splash.b64 > app/src/main/assets/splash_portrait.jpg
+          base64 -d branding/icon.b64 > /tmp/hojrechi-icon.jpg
+          python3 - <<'PY'
+          from PIL import Image
+          from collections import deque
+          im=Image.open('/tmp/hojrechi-icon.jpg').convert('RGBA')
+          # Preserve the brand artwork, eliminating only connected white corner pixels.
+          pix=im.load(); w,h=im.size
+          q=deque([(0,0),(w-1,0),(0,h-1),(w-1,h-1)])
+          seen=set()
+          while q:
+              x,y=q.popleft()
+              if not (0<=x<w and 0<=y<h) or (x,y) in seen: continue
+              seen.add((x,y))
+              r,g,b,a=pix[x,y]
+              if r<235 or g<235 or b<235: continue
+              pix[x,y]=(r,g,b,0)
+              q.extend([(x+1,y),(x-1,y),(x,y+1),(x,y-1)])
+          im.resize((512,512),Image.Resampling.LANCZOS).save('app/src/main/res/drawable/app_icon.png')
+          PY
+          test -s app/src/main/assets/splash_portrait.jpg
+          test -s app/src/main/res/drawable/app_icon.png
+      - name: Compile debug APK
+        run: gradle :app:assembleDebug --stacktrace --no-daemon
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hojrechi-Android-1.2.0-APK
+          path: hojrechi-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
