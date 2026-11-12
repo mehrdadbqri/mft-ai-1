@@ -12,6 +12,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.view.Gravity;
+import android.view.DisplayCutout;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -33,6 +36,8 @@ public final class MainActivity extends Activity {
  private static final String HOME = "https://hojrechi.com/";
  private static final int FILE_PICKER = 4219;
  private WebView web;
+ private FrameLayout root;
+ private static final int CREAM = Color.rgb(250,246,239);
  private ImageView splash;
  private TextView error;
  private ValueCallback<Uri[]> fileCallback;
@@ -41,7 +46,8 @@ public final class MainActivity extends Activity {
   super.onCreate(state);
   immersive();
   FrameLayout layout = new FrameLayout(this);
-  layout.setBackgroundColor(Color.rgb(255, 90, 0));
+  root=layout;
+  layout.setBackgroundColor(CREAM);
   web = new SwipeWebView(this);
   web.setOverScrollMode(View.OVER_SCROLL_NEVER);
   web.setBackgroundColor(Color.WHITE);
@@ -66,17 +72,23 @@ public final class MainActivity extends Activity {
    @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) { return external(req.getUrl().toString()); }
    @Override public void onPageStarted(WebView view, String url, Bitmap favicon) {
     loadFailed=false;
+    if(splash!=null && splash.getVisibility()!=View.VISIBLE){
+     view.animate().cancel();
+     view.animate().alpha(0.96f).setDuration(95).start();
+    }
     if(error!=null)error.setVisibility(View.GONE);
    }
    @Override public void onPageFinished(WebView view, String url) {
-    if(splash!=null)splash.setVisibility(View.GONE);
+    fadeOutSplash();
+    view.animate().alpha(1f).setDuration(190).start();
     if(loadFailed && error!=null)error.setVisibility(View.VISIBLE);
     CookieManager.getInstance().flush();
    }
    @Override public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError err) {
     if(req.isForMainFrame()) {
      loadFailed=true;
-     if(splash!=null)splash.setVisibility(View.GONE);
+     fadeOutSplash();
+     view.animate().alpha(1f).setDuration(180).start();
      if(error!=null)error.setVisibility(View.VISIBLE);
     }
    }
@@ -107,7 +119,7 @@ public final class MainActivity extends Activity {
   layout.addView(web,new FrameLayout.LayoutParams(-1,-1));
   splash=new ImageView(this);
   splash.setBackgroundColor(Color.rgb(255,90,0));
-  try(java.io.InputStream in=getAssets().open("splash_portrait.jpg")) {
+  try(java.io.InputStream in=getAssets().open("splash_portrait.png")) {
    splash.setImageBitmap(BitmapFactory.decodeStream(in));
   } catch(Exception ignored) {}
   splash.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -119,20 +131,77 @@ public final class MainActivity extends Activity {
   error.setPadding(30,30,30,30);error.setVisibility(View.GONE);
   error.setOnClickListener(v->{error.setVisibility(View.GONE);web.reload();});
   layout.addView(error,new FrameLayout.LayoutParams(-1,-1));
+  installCutoutInsets(layout);
   setContentView(layout);
+  if(Build.VERSION.SDK_INT>=20)layout.requestApplyInsets();
   if(Build.VERSION.SDK_INT>=33) getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
    android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::backOrExit);
   if(state==null)web.loadUrl(HOME);
   else if(web.restoreState(state)==null)web.loadUrl(HOME);
  }
+ private void fadeOutSplash() {
+  if(splash==null || splash.getVisibility()!=View.VISIBLE) return;
+  splash.animate().cancel();
+  splash.animate().alpha(0f).setDuration(260).withEndAction(()->{
+   if(splash!=null)splash.setVisibility(View.GONE);
+  }).start();
+ }
+ private void installCutoutInsets(FrameLayout layout) {
+  if(Build.VERSION.SDK_INT<28) return;
+  layout.setOnApplyWindowInsetsListener((view,insets)->{
+   int inset=0;
+   int bottom=0;
+   float density=getResources().getDisplayMetrics().density;
+   if(Build.VERSION.SDK_INT>=30) {
+    inset=insets.getInsetsIgnoringVisibility(WindowInsets.Type.statusBars()).top;
+    inset=Math.max(inset,insets.getInsetsIgnoringVisibility(WindowInsets.Type.displayCutout()).top);
+    bottom=insets.getInsets(WindowInsets.Type.ime()).bottom;
+   } else {
+    inset=insets.getStableInsetTop();
+    DisplayCutout cutout=insets.getDisplayCutout();
+    if(cutout!=null)inset=Math.max(inset,cutout.getSafeInsetTop());
+   }
+   // Keep the camera area inside the activity. Match the site's cream background,
+   // but keep actual website controls below the cutout/touch-obstruction region.
+   inset=Math.max(inset,Math.round(24*density));
+   if(web!=null) {
+    FrameLayout.LayoutParams params=(FrameLayout.LayoutParams)web.getLayoutParams();
+    if(params!=null && params.topMargin!=inset) {
+     params.topMargin=inset;
+     web.setLayoutParams(params);
+    }
+   }
+   if(layout.getPaddingBottom()!=bottom)layout.setPadding(0,0,0,bottom);
+   return insets;
+  });
+ }
  private void immersive() {
-  getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);
-  getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN|
-    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|
-    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|
+  getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+  getWindow().setStatusBarColor(CREAM);
+  getWindow().setNavigationBarColor(CREAM);
+  if(Build.VERSION.SDK_INT>=28) {
+   WindowManager.LayoutParams attrs=getWindow().getAttributes();
+   attrs.layoutInDisplayCutoutMode=Build.VERSION.SDK_INT>=30
+       ? WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+       : WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+   getWindow().setAttributes(attrs);
+  }
+  if(Build.VERSION.SDK_INT>=30) {
+   getWindow().setDecorFitsSystemWindows(false);
+   WindowInsetsController controller=getWindow().getInsetsController();
+   if(controller!=null) {
+    controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+    controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+   }
+  } else {
+   getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);
+  }
+  getWindow().getDecorView().setSystemUiVisibility(
+    View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
+    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
     View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
  }
- @Override public void onWindowFocusChanged(boolean focus) {super.onWindowFocusChanged(focus); if(focus)immersive();}
  private boolean external(String link) {
   if(link==null)return false;
   Uri uri=Uri.parse(link);
