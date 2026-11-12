@@ -114,7 +114,7 @@ jobs:
             import re
             log=open('splash-timing.log').read()
             assert 'Branded splash visible' in log, 'Splash view did not appear'
-            matches=re.findall(r'Opening trusted web activity after (\\d+) ms',log)
+            matches=re.findall(r'Opening trusted web activity after ([0-9]+) ms',log)
             assert matches, 'TWA was never launched after the splash'
             elapsed=int(matches[-1])
             assert elapsed>=1400, f'Splash too short: {elapsed}ms'
