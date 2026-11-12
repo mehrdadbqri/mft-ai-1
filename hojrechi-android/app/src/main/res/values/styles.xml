@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-<style name="HojrechiTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-<item name="android:windowBackground">#F95B00</item>
-<item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
-<item name="android:windowNoTitle">true</item>
-<item name="android:statusBarColor">#FAF6EF</item>
-<item name="android:navigationBarColor">#FAF6EF</item>
-<item name="android:colorAccent">#FF5A00</item>
-<item name="android:windowLightStatusBar">false</item>
-</style>
+  <style name="HojrechiTwaTheme" parent="android:style/Theme.Translucent.NoTitleBar">
+    <item name="android:windowBackground">@color/brand_orange</item>
+    <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    <item name="android:navigationBarColor">@color/cream</item>
+    <item name="android:statusBarColor">@color/cream</item>
+  </style>
 </resources>
