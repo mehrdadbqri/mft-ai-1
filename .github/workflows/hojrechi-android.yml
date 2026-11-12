@@ -92,3 +92,50 @@ jobs:
           path: hojrechi-android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+  smoke-test:
+    name: Android 13 emulator - launch and crash check
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch compiled APK
+        uses: actions/download-artifact@v4
+        with:
+          name: Hojrechi-Android-1.3.0-APK
+          path: tested-apk
+      - name: Enable KVM for emulator
+        run: |
+          sudo chmod 666 /dev/kvm
+      - name: Boot Android 13 and test actual launch
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          disable-animations: true
+          script: |
+            adb install -r tested-apk/app-debug.apk
+            adb logcat -c
+            adb shell am start -W -n com.hojrechi.app/.MainActivity
+            sleep 12
+            adb shell pidof com.hojrechi.app
+            adb shell dumpsys activity activities | grep 'mResumedActivity\|topResumedActivity\|mCurrentFocus' || true
+            adb logcat -d -b crash > android-crash.log
+            if grep -q 'FATAL EXCEPTION\|Process: com.hojrechi.app' android-crash.log; then
+              echo 'Android app crashed:'; cat android-crash.log; exit 1
+            fi
+            adb shell screencap -p /sdcard/hojrechi-test.png
+            adb pull /sdcard/hojrechi-test.png hojrechi-test.png
+            test -s hojrechi-test.png
+      - name: Upload emulator screenshot / crash output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hojrechi-Android-13-Emulator-Test
+          path: |
+            hojrechi-test.png
+            android-crash.log
+          if-no-files-found: ignore
+          retention-days: 7
