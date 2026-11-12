@@ -110,16 +110,8 @@ jobs:
             sleep 8
             adb logcat -d -v time -s HojrechiSplash:I > splash-timing.log
             cat splash-timing.log
-            python3 - <<'PY'
-            import re
-            log=open('splash-timing.log').read()
-            assert 'Branded splash visible' in log, 'Splash view did not appear'
-            matches=re.findall(r'Opening trusted web activity after ([0-9]+) ms',log)
-            assert matches, 'TWA was never launched after the splash'
-            elapsed=int(matches[-1])
-            assert elapsed>=1400, f'Splash too short: {elapsed}ms'
-            print('Verified native branded splash duration:',elapsed,'ms')
-            PY
+            grep -q 'Branded splash visible' splash-timing.log
+            awk '/Opening trusted web activity after/ {duration=$(NF-1)} END {if (duration+0 < 1400) { print "Splash failed minimum 1400ms: " duration; exit 1 }; print "Verified branded splash duration " duration "ms" }' splash-timing.log
             adb logcat -d -b crash > android-crash.log
             if grep -E -q "FATAL EXCEPTION|Process: com.hojrechi.app" android-crash.log; then cat android-crash.log; exit 1; fi
             adb shell screencap -p /sdcard/twa.png
