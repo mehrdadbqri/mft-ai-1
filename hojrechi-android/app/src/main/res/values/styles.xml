@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 <style name="HojrechiTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-<item name="android:windowBackground">#FF5A00</item>
+<item name="android:windowBackground">#F95B00</item>
+<item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
 <item name="android:windowNoTitle">true</item>
-<item name="android:statusBarColor">#FF5A00</item>
-<item name="android:navigationBarColor">#FF5A00</item>
+<item name="android:statusBarColor">#FAF6EF</item>
+<item name="android:navigationBarColor">#FAF6EF</item>
 <item name="android:colorAccent">#FF5A00</item>
 <item name="android:windowLightStatusBar">false</item>
 </style>
