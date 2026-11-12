@@ -1,0 +1,50 @@
+name: Hojrechi TWA domain verification
+on:
+  push:
+    branches:
+      - hojrechi-twa-v1.5
+    paths:
+      - .github/workflows/verify-hojrechi-domain.yml
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch exact well-known files
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 25 --retry 2 -H 'Accept: application/json' -D assetheaders.txt -o assetlinks.json 'https://hojrechi.com/.well-known/assetlinks.json'
+          curl -fsSL --max-time 25 --retry 2 -H 'Accept: application/manifest+json,application/json' -D manifestheaders.txt -o manifest.webmanifest 'https://hojrechi.com/manifest.webmanifest'
+          echo "assetlinks HTTP:"
+          head -n 1 assetheaders.txt
+          echo "manifest HTTP:"
+          head -n 1 manifestheaders.txt
+          echo "assetlinks Content-Type:"
+          grep -i '^content-type:' assetheaders.txt | tail -n 1 || true
+          echo "manifest Content-Type:"
+          grep -i '^content-type:' manifestheaders.txt | tail -n 1 || true
+      - name: Validate Digital Asset Links and manifest values
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          expected="5E:03:4F:EA:96:CC:B0:8B:8E:F3:2B:25:5C:75:AE:CE:49:F4:AB:D3:89:53:46:5E:EA:2F:F1:5E:EE:BC:20:B8"
+          data=json.loads(pathlib.Path('assetlinks.json').read_text(encoding='utf-8'))
+          assert isinstance(data,list), type(data)
+          assert any(
+              isinstance(item,dict)
+              and "delegate_permission/common.handle_all_urls" in item.get('relation',[])
+              and item.get('target',{}).get('namespace')=="android_app"
+              and item.get('target',{}).get('package_name')=="com.hojrechi.app"
+              and expected in item.get('target',{}).get('sha256_cert_fingerprints',[])
+              for item in data
+          ),'Missing exact production app fingerprint / relation'
+          m=json.loads(pathlib.Path('manifest.webmanifest').read_text(encoding='utf-8'))
+          assert isinstance(m,dict)
+          assert m.get('name'), 'Missing PWA name'
+          assert m.get('start_url'), 'Missing start_url'
+          assert m.get('icons'), 'Missing icons'
+          print('PASS: Live Digital Asset Links JSON, release signing certificate SHA-256 and PWA manifest.')
+          print('name=',m.get('name'), 'start_url=',m.get('start_url'), 'scope=',m.get('scope'), 'icons=',len(m['icons']))
+          PY
