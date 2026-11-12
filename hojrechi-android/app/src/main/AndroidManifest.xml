@@ -12,6 +12,8 @@
       android:supportsRtl="true"
       android:theme="@style/HojrechiTwaTheme">
     <meta-data android:name="asset_statements" android:resource="@string/asset_statements"/>
+    <!-- Bazaar-specific marker. Preserve the standard Android TWA metadata and package ID. -->
+    <meta-data android:name="cafebazaar_twa" android:value="true"/>
     <activity
         android:name="com.hojrechi.app.HojrechiLauncherActivity"
         android:exported="true"
