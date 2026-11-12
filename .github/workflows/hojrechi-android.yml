@@ -36,8 +36,14 @@ jobs:
           base64 -d branding/splash.b64 > app/src/main/assets/splash_portrait.jpg
           base64 -d branding/icon.b64 > /tmp/hojrechi-icon.jpg
           python3 - <<'PY'
-          from PIL import Image
+          from PIL import Image, ImageDraw
           from collections import deque
+          splash_path='app/src/main/assets/splash_portrait.jpg'
+          splash=Image.open(splash_path).convert('RGB')
+          w0,h0=splash.size
+          bg=splash.getpixel((10,h0-90))
+          ImageDraw.Draw(splash).rectangle((0,h0-55,w0,h0),fill=bg)
+          splash.save(splash_path,quality=92)
           im=Image.open('/tmp/hojrechi-icon.jpg').convert('RGBA')
           # Preserve the brand artwork, eliminating only connected white corner pixels.
           pix=im.load(); w,h=im.size
